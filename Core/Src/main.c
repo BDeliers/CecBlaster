@@ -103,7 +103,10 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   printf("-- Startup --\r\n");
-  AppCec_Init();
+  if (!AppCec_Init())
+  {
+    Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -1,43 +1,91 @@
 //      INCLUDES
 #include "AppCec.h"
+#include "DrvCec.h"
 
+#include <string.h>
 #include <stdio.h>
-#include "stm32h5xx_hal.h"
 
 //      EXTERN VARIABLES
-extern CEC_HandleTypeDef            hcec;
 
 //      LOCAL VARIABLES
-static bool                         cec_received_frame  = false;
-static bool                         cec_error           = false;
-static uint8_t                      cec_frame_size      = 0;
-static uint8_t                      cec_rx_buff[16]     = {0};
-static bool                         full_log            = false;
+const char* CEC_COMMANDS_STRING[] = {
+    "FEATURE_ABORT",NULL,NULL,NULL,"IMAGE_VIEW_ON","TUNER_STEP_INCREMENT","TUNER_STEP_DECREMENT","TUNER_DEVICE_STATUS",
+    "GIVE_TUNER_DEVICE_STATUS","RECORD_ON","RECORD_STATUS","RECORD_OFF",NULL,"TEXT_VIEW_ON",NULL,"RECORD_TV_SCREEN",
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"GIVE_DECK_STATUS","DECK_STATUS",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"SET_MENU_LANGUAGE","CLEAR_ANALOGUE_TIMER",
+    "SET_ANALOGUE_TIMER","TIMER_STATUS","STANDBY",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"PLAY","DECK_CONTROL",
+    "TIMER_CLEARED_STATUS","USER_CONTROL_PRESSED","USER_CONTROL_RELEASED","SET_OSD_NAME",
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    NULL,NULL,NULL,NULL,NULL,"SET_OSD_STRING",NULL,NULL,"SET_TIMER_PROGRAM_TITLE",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    "SYSTEM_AUDIO_MODE_REQUEST","GIVE_AUDIO_STATUS","SET_SYSTEM_AUDIO_MODE",NULL,NULL,NULL,NULL,NULL,NULL,NULL,"REPORT_AUDIO_STATUS",
+    NULL,NULL,"GIVE_SYSTEM_AUDIO_MODE_STATUS","SYSTEM_AUDIO_MODE_STATUS",NULL,"ROUTING_CHANGE","ROUTING_INFORMATION","ACTIVE_SOURCE",
+    "GIVE_PHYSICAL_ADDRESS","REPORT_PHYSICAL_ADDRESS","REQUEST_ACTIVE_SOURCE","SET_STREAM_PATH","DEVICE_VENDOR_ID",NULL,
+    "VENDOR_COMMAND","VENDOR_REMOTE_BUTTON_DOWN","VENDOR_REMOTE_BUTTON_UP","GIVE_DEVICE_VENDOR_ID","MENU_REQUEST","MENU_STATUS",
+    "GIVE_DEVICE_POWER_STATUS","REPORT_POWER_STATUS","GET_MENU_LANGUAGE","SELECT_ANALOGUE_SERVICE","SELECT_DIGITAL_SERVICE",
+    NULL,NULL,NULL,"SET_DIGITAL_TIMER",NULL,"CLEAR_DIGITAL_TIMER","SET_AUDIO_RATE",NULL,NULL,"INACTIVE_SOURCE","CEC_VERSION",
+    "GET_CEC_VERSION","VENDOR_COMMAND_WITH_ID","CLEAR_EXTERNAL_TIMER","SET_EXTERNAL_TIMER","REPORT_SHORT_AUDIO_DESCRIPTOR",
+    "REQUEST_SHORT_AUDIO_DESCRIPTOR",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"INITIATE_ARC","REPORT_ARC_INITIATED","REPORT_ARC_TERMINATED",
+    "REQUEST_ARC_INITIATION","REQUEST_ARC_TERMINATION","TERMINATE_ARC",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"CDC_MESSAGE",NULL,NULL,NULL,NULL,NULL,NULL,"ABORT",
+};
+
+const char* CEC_LOGICAL_ADDRESS_STRING[] = {
+    "TV","RECORDING_1","RECORDING_2","TUNER_1","PLAYBACK_1","AUDIO_SYSTEM","TUNER_2","TUNER_3",
+    "PLAYBACK_2","RECORDING_3","TUNER_4","PLAYBACK_3","BACKUP_1","BACKUP_2","SPECIFIC",
+    "UNREGISTERED_BROADCAST","CEC_DEVICE_COUNT",
+};
 
 //      STATIC FUNCTIONS PROTOTYPES
-static void CecErrorClbk(CEC_HandleTypeDef *hcec);
-static void CecRxClbk(CEC_HandleTypeDef *hcec, uint32_t frame_size);
 
 //      STATIC FUNCTIONS DEFINITION
-static void CecRxClbk(CEC_HandleTypeDef *hcec, uint32_t frame_size)
+void CecRxHandler(CEC_COMMAND* cmd)
 {
-	cec_received_frame = true;
-	cec_frame_size	   = frame_size;
+    printf("[AppCec] Received command ");
+    if (cmd->payload_size == 1)
+    {
+        printf("POLLING");
+    }
+    else
+    {
+        if (CEC_COMMANDS_STRING[cmd->opcode] != NULL)
+        {
+            printf("%s", CEC_COMMANDS_STRING[cmd->opcode]);
+        }
+        else
+        {
+            printf("UNKNOWN %02x", cmd->opcode);
+        }
+    }
+    printf(" from %s to %s", CEC_LOGICAL_ADDRESS_STRING[cmd->source], CEC_LOGICAL_ADDRESS_STRING[cmd->target]);
+
+    if (cmd->payload_size > 0)
+    {
+        printf(" with payload: \r\n\t");
+        for (uint8_t i = 0; i < cmd->payload_size; i++)
+        {
+            printf("%02x ", cmd->payload[i]);
+        }
+    }
+
+    printf("\r\n");
 }
 
-static void CecErrorClbk(CEC_HandleTypeDef *hcec)
+void CecErrorHandler(void)
 {
-	cec_error = true;
+    printf("[AppCec] Error\r\n");
 }
-
 
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppCec_Init(void)
 {
-	HAL_CEC_ChangeRxBuffer(&hcec, cec_rx_buff);
+    if (!DrvCec_Init())
+    {
+        return false;
+    }
 
-    if (HAL_CEC_RegisterRxCpltCallback(&hcec, CecRxClbk) != HAL_OK
-        || HAL_CEC_RegisterCallback(&hcec, HAL_CEC_ERROR_CB_ID, CecErrorClbk) != HAL_OK)
+    if (!DrvCec_RegisterRxHandler(CecRxHandler) || !DrvCec_RegisterErrorHandler(CecErrorHandler))
     {
         return false;
     }
@@ -47,38 +95,5 @@ bool AppCec_Init(void)
 
 bool AppCec_Handler(void)
 {
-    if (cec_error)
-    {
-        if (full_log)
-        {
-            printf("CEC error\r\n");
-        }
-
-        cec_error = false;
-    }
-    if (cec_received_frame)
-    {
-        if (full_log)
-        {
-            printf("CEC received frame = ");
-            for (uint8_t i = 0; i < cec_frame_size; i++)
-            {
-                printf("%02X", cec_rx_buff[i]);
-                if ((i+1) < cec_frame_size)
-                {
-                    printf(":");
-                }
-            }
-            printf("\r\n");
-        }
-
-        cec_received_frame = false;
-    }
-
-    return true;
-}
-
-void AppCec_SetFullLog(bool state)
-{
-    full_log = state;
+    return DrvCec_Handler();
 }
