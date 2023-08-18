@@ -7,13 +7,13 @@
 
 //      LOCAL TYPEDEFS DEFINES AND ENUMS
 #define MAX_CALLBACKS_CNT       10U
-#define FULL_LOG_RX             1U
+#define TX_BUFFER_SIZE          10U
+#define LOG_RXTX                1U
 
 typedef struct
 {
     CEC_LOGICAL_ADDRESS target;
     CEC_LOGICAL_ADDRESS source;
-    CEC_COMMANDS        opcode;
     APP_CEC_CLBK        callback;
 }
 CEC_CLBK_STRUCT;
@@ -22,7 +22,7 @@ CEC_CLBK_STRUCT;
 
 //      LOCAL VARIABLES
 
-#if FULL_LOG_RX
+#if LOG_RXTX
     const char* CEC_COMMANDS_STRING[] = {
         "FEATURE_ABORT",NULL,NULL,NULL,"IMAGE_VIEW_ON","TUNER_STEP_INCREMENT","TUNER_STEP_DECREMENT","TUNER_DEVICE_STATUS",
         "GIVE_TUNER_DEVICE_STATUS","RECORD_ON","RECORD_STATUS","RECORD_OFF",NULL,"TEXT_VIEW_ON",NULL,"RECORD_TV_SCREEN",
@@ -56,56 +56,78 @@ CEC_CLBK_STRUCT;
 static uint8_t          callbacks_count                   = 0;
 static CEC_CLBK_STRUCT  callbacks_list[MAX_CALLBACKS_CNT] = {0};
 
+static CEC_COMMAND      tx_buffer[TX_BUFFER_SIZE]         = {0};
+static uint8_t          tx_buffer_write_index             = 0;
+static uint8_t          tx_buffer_read_index              = 0;
+static uint8_t          tx_buffer_usage                   = 0;
+
 //      STATIC FUNCTIONS PROTOTYPES
 
+//      STATIC FUNCTIONS DECLARATION
+static void CecErrorHandler(void);
+static void CecRxHandler(CEC_COMMAND* cmd);
+static void LogRxTx(CEC_COMMAND* cmd, bool received);
+
 //      STATIC FUNCTIONS DEFINITION
-void CecRxHandler(CEC_COMMAND* cmd)
+static void CecRxHandler(CEC_COMMAND* cmd)
 {
-#if FULL_LOG_RX
-        printf("[AppCec] Received command ");
-        if (cmd->payload_size == 1)
-        {
-            printf("POLLING");
-        }
-        else
-        {
-            if (CEC_COMMANDS_STRING[cmd->opcode] != NULL)
-            {
-                printf("%s", CEC_COMMANDS_STRING[cmd->opcode]);
-            }
-            else
-            {
-                printf("UNKNOWN %02x", cmd->opcode);
-            }
-        }
-        printf(" from %s to %s", CEC_LOGICAL_ADDRESS_STRING[cmd->source], CEC_LOGICAL_ADDRESS_STRING[cmd->target]);
-
-        if (cmd->payload_size > 0)
-        {
-            printf(" with payload: \r\n\t");
-            for (uint8_t i = 0; i < cmd->payload_size; i++)
-            {
-                printf("%02x ", cmd->payload[i]);
-            }
-        }
-
-        printf("\r\n");
+#if LOG_RXTX
+    LogRxTx(cmd, true);
 #endif
 
     for (size_t i = 0; i < callbacks_count; i++)
     {
         if (   callbacks_list[i].target == cmd->target
-            && callbacks_list[i].source == cmd->source
-            && callbacks_list[i].opcode == cmd->opcode)
+            && callbacks_list[i].source == cmd->source)
         {
             callbacks_list[i].callback(cmd);
         }
     }
 }
 
-void CecErrorHandler(void)
+static void CecErrorHandler(void)
 {
     printf("[AppCec] Error\r\n");
+}
+
+static void LogRxTx(CEC_COMMAND* cmd, bool received)
+{
+    if (received)
+    {
+        printf("[AppCec] Received command ");
+    }
+    else
+    {
+        printf("[AppCec] Sent command ");
+    }
+
+    if (cmd->polling)
+    {
+        printf("POLLING");
+    }
+    else
+    {
+        if (CEC_COMMANDS_STRING[cmd->opcode] != NULL)
+        {
+            printf("%s", CEC_COMMANDS_STRING[cmd->opcode]);
+        }
+        else
+        {
+            printf("UNKNOWN %02x", cmd->opcode);
+        }
+    }
+    printf(" from %s to %s", CEC_LOGICAL_ADDRESS_STRING[cmd->source], CEC_LOGICAL_ADDRESS_STRING[cmd->target]);
+
+    if (cmd->payload_size > 0)
+    {
+        printf(" with payload: \r\n\t");
+        for (uint8_t i = 0; i < cmd->payload_size; i++)
+        {
+            printf("%02x ", cmd->payload[i]);
+        }
+    }
+
+    printf("\r\n");
 }
 
 //      PUBLIC FUNCTIONS DEFINITION
@@ -121,22 +143,56 @@ bool AppCec_Init(void)
         return false;
     }
 
+    tx_buffer_read_index  = 0;
+    tx_buffer_write_index = 0;
+    tx_buffer_usage       = 0;
+
     return true;
 }
 
 bool AppCec_Handler(void)
 {
-    return DrvCec_Handler();
+    if (!DrvCec_Handler())
+    {
+        return false;
+    }
+
+    if (tx_buffer_usage > 0)
+    {
+        if (DrvCec_IsReady())
+        {
+            CEC_COMMAND* cmd = &tx_buffer[tx_buffer_read_index++];
+            if (DrvCec_Send(cmd))
+            {
+                if (tx_buffer_read_index >= TX_BUFFER_SIZE)
+                {
+                    tx_buffer_read_index = 0;
+                }
+
+                tx_buffer_usage--;
+
+#if LOG_RXTX
+                LogRxTx(cmd, false);
+#endif
+            }
+            else
+            {
+                printf("[AppCec] Failed to send frame");
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
-bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS source, CEC_LOGICAL_ADDRESS target, CEC_COMMANDS opcode, APP_CEC_CLBK clbk)
+bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS source, CEC_LOGICAL_ADDRESS target, APP_CEC_CLBK clbk)
 {
     if (callbacks_count < MAX_CALLBACKS_CNT)
     {
-        // Two callbacks might be assigned to the same command
+        // Two callbacks might be assigned to the same source/target pair
         callbacks_list[callbacks_count].source   = source;
         callbacks_list[callbacks_count].target   = target;
-        callbacks_list[callbacks_count].opcode   = opcode;
         callbacks_list[callbacks_count].callback = clbk;
         callbacks_count++;
 
@@ -144,4 +200,22 @@ bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS source, CEC_LOGICAL_ADDRESS tar
     }
 
     return false;
+}
+
+bool AppCec_Send(CEC_COMMAND* cmd)
+{
+    if (tx_buffer_usage == TX_BUFFER_SIZE)
+    {
+        return false;
+    }
+
+    memcpy(&tx_buffer[tx_buffer_write_index++], cmd, sizeof(CEC_COMMAND));
+    tx_buffer_usage++;
+
+    if (tx_buffer_write_index >= TX_BUFFER_SIZE)
+    {
+        tx_buffer_write_index = 0;
+    }
+
+    return true;
 }

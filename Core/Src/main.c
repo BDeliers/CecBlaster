@@ -201,7 +201,7 @@ static void MX_HDMI_CEC_Init(void)
   hcec.Init.BroadcastMsgNoErrorBitGen = CEC_BROADCASTERROR_ERRORBIT_GENERATION;
   hcec.Init.SignalFreeTimeOption = CEC_SFT_START_ON_TXSOM;
   hcec.Init.ListenMode = CEC_FULL_LISTENING_MODE;
-  hcec.Init.OwnAddress = CEC_OWN_ADDRESS_14;
+  hcec.Init.OwnAddress = CEC_OWN_ADDRESS_5;
   hcec.Init.RxBuffer = cec_receive_buffer;
   if (HAL_CEC_Init(&hcec) != HAL_OK)
   {

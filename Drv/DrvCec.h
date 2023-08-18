@@ -1,6 +1,6 @@
 /**
  * @file    DrvCec.h
- * @brief   HDMI CEC driver
+ * @brief   HDMI CEC driver for STM32H563
 */
 
 #ifndef DRV_CEC_H
@@ -22,6 +22,8 @@ typedef void (*CEC_ERROR_HANDLER)(void);
 //      PUBLIC FUNCTIONS PROTOTYPES
 bool DrvCec_Init(void);
 bool DrvCec_Handler(void);
+
+bool DrvCec_IsReady(void);
 
 bool DrvCec_RegisterRxHandler(CEC_RX_HANDLER handler);
 bool DrvCec_RegisterErrorHandler(CEC_ERROR_HANDLER handler);

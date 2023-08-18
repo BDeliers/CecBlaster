@@ -69,7 +69,7 @@ typedef enum
     SET_OSD_STRING = 0x64,
     // OSD transfer
     GIVE_OSD_NAME = 0x46,
-    SET_OSD_NAME  = 0x46,
+    SET_OSD_NAME  = 0x47,
     // Device menu control & Remote control passtrough
     MENU_REQUEST            = 0x8D,
     MENU_STATUS             = 0x8E,
@@ -130,6 +130,7 @@ typedef struct
     CEC_COMMANDS        opcode;
     CEC_LOGICAL_ADDRESS source;
     CEC_LOGICAL_ADDRESS target;
+    bool                polling;
     uint8_t             payload[14];
     uint8_t             payload_size;
 }

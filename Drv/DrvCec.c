@@ -60,6 +60,10 @@ static bool CecParseFrame(uint8_t* payload, uint8_t size, CEC_COMMAND* cmd)
             memcpy(cmd->payload, payload+2, size-2);
         }
     }
+    else
+    {
+        cmd->polling = true;
+    }
 
     return true;
 }
@@ -123,6 +127,11 @@ bool DrvCec_RegisterErrorHandler(CEC_ERROR_HANDLER handler)
 
     error_handler = handler;
     return true;
+}
+
+bool DrvCec_IsReady(void)
+{
+    return (HAL_CEC_GetState(&hcec) == HAL_CEC_STATE_READY);
 }
 
 bool DrvCec_Send(CEC_COMMAND* cmd)
