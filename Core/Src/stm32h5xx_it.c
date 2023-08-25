@@ -58,7 +58,7 @@
 extern CEC_HandleTypeDef hcec;
 extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
-
+extern EXTI_HandleTypeDef hexti_btn;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -198,6 +198,19 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32h5xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles EXTI Line13 interrupt.
+  */
+void EXTI13_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI13_IRQn 0 */
+
+  /* USER CODE END EXTI13_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_13);
+  /* USER CODE BEGIN EXTI13_IRQn 1 */
+  /* USER CODE END EXTI13_IRQn 1 */
+}
 
 /**
   * @brief This function handles TIM2 global interrupt.

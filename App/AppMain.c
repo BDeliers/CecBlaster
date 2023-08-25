@@ -2,8 +2,11 @@
 #include "AppCec.h"
 #include "DrvIrSirc.h"
 
+#include "log.h"
+
+#include "stm32h5xx_hal.h"
+
 #include <string.h>
-#include <stdio.h>
 
 //      LOCAL TYPEDEFS AND ENUMS
 typedef enum
@@ -11,8 +14,13 @@ typedef enum
     RM_AAU013_POWER,
     RM_AAU013_VOL_UP,
     RM_AAU013_VOL_DOWN,
+    RM_AAU013_VOL_MUTE,
     RM_AAU013_IN_VIDEO2,
     RM_AAU013_IN_CD,
+    RM_AAU013_MODE_STEREO,
+    RM_AAU013_MODE_AFD,
+    RM_AAU013_MODE_MOVIE,
+    RM_AAU013_MODE_MUSIC,
     RM_AAU013_COMMANDS_COUNT
 }
 RM_AAU013_COMMANDS;
@@ -24,14 +32,19 @@ RM_AAU013_COMMANDS;
 // Sony remote power button command
 static const SIRC_FRAME RM_AAU013_COMMAND_SET[RM_AAU013_COMMANDS_COUNT] = {
     { .command = 0x15, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x24, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x12, .address = 0x30, .extended = 0x00, .version = C7_A8 },
     { .command = 0x13, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x14, .address = 0x30, .extended = 0x00, .version = C7_A8 },
     { .command = 0x1E, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x25, .address = 0x30, .extended = 0x00, .version = C7_A8 }
+    { .command = 0x25, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x41, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x42, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x43, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x44, .address = 0x30, .extended = 0x00, .version = C7_A8 },
 };
 
-static bool     audio_on          = false;
-static uint8_t  last_user_control = 0xFF;
+static bool     audio_on            = false;
+static uint8_t  last_user_control   = 0xFF;
 
 //      STATIC FUNCTIONS PROTOTYPES
 static void Cec_Clbk(CEC_COMMAND* cmd);
@@ -50,9 +63,12 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
         {
             case STANDBY:
             {
-                audio_on   = false;
-                ir_cmd_out = RM_AAU013_POWER;
-                send_ir    = true;
+                if (audio_on)
+                {
+                    audio_on   = false;
+                    ir_cmd_out = RM_AAU013_POWER;
+                    send_ir    = true;
+                }
                 break;
             }
 
@@ -115,7 +131,7 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
                     ir_cmd_out = RM_AAU013_POWER;
                     send_ir    = true;
 
-                    // Send switch to right source
+                    // Send switch to right source, to be queued with delay...
                 }
                 break;
             }
@@ -137,7 +153,7 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
                         ir_cmd_out = RM_AAU013_VOL_DOWN;
                         break;
                     case 0x43: // Mute
-                        ir_cmd_out = RM_AAU013_VOL_DOWN;
+                        ir_cmd_out = RM_AAU013_VOL_MUTE;
                         break;
                     default:
                         send_ir = false;
@@ -167,8 +183,12 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
     {
         if (!DrvIrSirc_Transmit(&RM_AAU013_COMMAND_SET[ir_cmd_out], 2))
         {
-            printf("[AppMain] Failed to send IR frame");
+            log_error("Failed to send IR frame\r");
         }
+        /*else
+        {
+            log_debug("Sent IR command %02x\r", RM_AAU013_COMMAND_SET[ir_cmd_out].command);
+        }*/
     }
 
     // Send the CEC frame if needed
@@ -176,8 +196,18 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
     {
         if (!AppCec_Send(&cec_cmd_out))
         {
-            printf("[AppMain] Failed to send CEC frame");
+            log_error("Failed to send CEC frame\r");
         }
+    }
+}
+
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_13)
+    {
+        log_trace("Button pressed, startign audio amp\r");
+        DrvIrSirc_Transmit(&RM_AAU013_COMMAND_SET[RM_AAU013_POWER], 2);
+        audio_on = !audio_on;
     }
 }
 

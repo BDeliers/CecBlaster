@@ -2,13 +2,15 @@
 #include "AppCec.h"
 #include "DrvCec.h"
 
+#include "log.h"
+
 #include <string.h>
-#include <stdio.h>
 
 //      LOCAL TYPEDEFS DEFINES AND ENUMS
 #define MAX_CALLBACKS_CNT       10U
 #define TX_BUFFER_SIZE          10U
 #define LOG_RXTX                1U
+#define SNPRINTF_BUF_SIZE       128U
 
 typedef struct
 {
@@ -29,8 +31,8 @@ CEC_CLBK_STRUCT;
         NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"GIVE_DECK_STATUS","DECK_STATUS",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
         NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"SET_MENU_LANGUAGE","CLEAR_ANALOGUE_TIMER",
         "SET_ANALOGUE_TIMER","TIMER_STATUS","STANDBY",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"PLAY","DECK_CONTROL",
-        "TIMER_CLEARED_STATUS","USER_CONTROL_PRESSED","USER_CONTROL_RELEASED","SET_OSD_NAME",
-        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+        "TIMER_CLEARED_STATUS","USER_CONTROL_PRESSED","USER_CONTROL_RELEASED","GIVE_OSD_NAME","SET_OSD_NAME",
+        NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
         NULL,NULL,NULL,NULL,NULL,"SET_OSD_STRING",NULL,NULL,"SET_TIMER_PROGRAM_TITLE",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
         "SYSTEM_AUDIO_MODE_REQUEST","GIVE_AUDIO_STATUS","SET_SYSTEM_AUDIO_MODE",NULL,NULL,NULL,NULL,NULL,NULL,NULL,"REPORT_AUDIO_STATUS",
         NULL,NULL,"GIVE_SYSTEM_AUDIO_MODE_STATUS","SYSTEM_AUDIO_MODE_STATUS",NULL,"ROUTING_CHANGE","ROUTING_INFORMATION","ACTIVE_SOURCE",
@@ -66,7 +68,10 @@ static uint8_t          tx_buffer_usage                   = 0;
 //      STATIC FUNCTIONS DECLARATION
 static void CecErrorHandler(void);
 static void CecRxHandler(CEC_COMMAND* cmd);
+
+#if LOG_RXTX
 static void LogRxTx(CEC_COMMAND* cmd, bool received);
+#endif
 
 //      STATIC FUNCTIONS DEFINITION
 static void CecRxHandler(CEC_COMMAND* cmd)
@@ -87,48 +92,54 @@ static void CecRxHandler(CEC_COMMAND* cmd)
 
 static void CecErrorHandler(void)
 {
-    printf("[AppCec] Error\r\n");
+    log_error("Error\r");
 }
 
+#if LOG_RXTX
 static void LogRxTx(CEC_COMMAND* cmd, bool received)
 {
+    char buf[SNPRINTF_BUF_SIZE];
+    uint8_t idx = 0;
+
     if (received)
     {
-        printf("[AppCec] Received command ");
+        idx = snprintf(buf, SNPRINTF_BUF_SIZE, "Received command ");
     }
     else
     {
-        printf("[AppCec] Sent command ");
+        idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "Sent command ");
     }
 
     if (cmd->polling)
     {
-        printf("POLLING");
+        idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "POLLING");
     }
     else
     {
         if (CEC_COMMANDS_STRING[cmd->opcode] != NULL)
         {
-            printf("%s", CEC_COMMANDS_STRING[cmd->opcode]);
+            idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "%s", CEC_COMMANDS_STRING[cmd->opcode]);
         }
         else
         {
-            printf("UNKNOWN %02x", cmd->opcode);
+            idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "UNKNOWN %02x", cmd->opcode);
         }
     }
-    printf(" from %s to %s", CEC_LOGICAL_ADDRESS_STRING[cmd->source], CEC_LOGICAL_ADDRESS_STRING[cmd->target]);
+    idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, " from %s to %s", CEC_LOGICAL_ADDRESS_STRING[cmd->source], CEC_LOGICAL_ADDRESS_STRING[cmd->target]);
 
     if (cmd->payload_size > 0)
     {
-        printf(" with payload: \r\n\t");
+        idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, " with payload: \t");
         for (uint8_t i = 0; i < cmd->payload_size; i++)
         {
-            printf("%02x ", cmd->payload[i]);
+            idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "%02x ", cmd->payload[i]);
         }
     }
 
-    printf("\r\n");
+    idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "\r");
+    log_debug(buf);
 }
+#endif // LOG_RXTX
 
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppCec_Init(void)
@@ -177,7 +188,7 @@ bool AppCec_Handler(void)
             }
             else
             {
-                printf("[AppCec] Failed to send frame");
+                printf("Failed to send frame");
                 return false;
             }
         }
