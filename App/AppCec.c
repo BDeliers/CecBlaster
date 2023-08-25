@@ -9,7 +9,7 @@
 //      LOCAL TYPEDEFS DEFINES AND ENUMS
 #define MAX_CALLBACKS_CNT       10U
 #define TX_BUFFER_SIZE          10U
-#define LOG_RXTX                1U
+#define LOG_RXTX                0U
 #define SNPRINTF_BUF_SIZE       128U
 
 typedef struct

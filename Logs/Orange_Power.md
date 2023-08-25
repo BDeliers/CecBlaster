@@ -1,82 +1,27 @@
 ## Power-on sequence from Orange UHD decoder connected to Samsung UE43TU7125 TV
 
 ```
-	**[AppCec]** Received command FEATURE_ABORT from PLAYBACK_1 to TV
-	**[AppCec]** Received command IMAGE_VIEW_ON from PLAYBACK_1 to TV
-	**[AppCec]** Received command GET_CEC_VERSION from TV to PLAYBACK_1
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		05
-	**[AppCec]** Received command GET_CEC_VERSION from TV to PLAYBACK_1
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		05 
-	**[AppCec]** Received command GIVE_DEVICE_VENDOR_ID from TV to PLAYBACK_1
-	**[AppCec]** Received command DEVICE_VENDOR_ID from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		00 15 82 
-	**[AppCec]** Received command GIVE_DEVICE_POWER_STATUS from TV to PLAYBACK_1
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		00 
-	**[AppCec]** Received command GIVE_DEVICE_VENDOR_ID from TV to PLAYBACK_1
-	**[AppCec]** Received command DEVICE_VENDOR_ID from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		00 15 82 
-	**[AppCec]** Received command GIVE_DEVICE_POWER_STATUS from TV to PLAYBACK_1
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		00 
-	**[AppCec]** Received command GIVE_PHYSICAL_ADDRESS from TV to PLAYBACK_1
-	**[AppCec]** Received command REPORT_PHYSICAL_ADDRESS from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		10 00 04 
-	**[AppCec]** Received command GIVE_PHYSICAL_ADDRESS from TV to PLAYBACK_1
-		10 00 
-	**[AppCec]** Error
-	**[AppCec]** Received command REPORT_PHYSICAL_ADDRESS from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		10 00 04 
-	**[AppCec]** Error
-	**[AppCec]** Received command SET_OSD_NAME from TV to PLAYBACK_1
-	**[AppCec]** Received command UNKNOWN 47 from PLAYBACK_1 to TV with payload: 
-		44 65 63 6f 64 65 75 72 20 55 48 44 
-	**[AppCec]** Error
-	**[AppCec]** Error
-	**[AppCec]** Received command VENDOR_COMMAND_WITH_ID from TV to PLAYBACK_1 with payload: 
-		00 00 f0 23 
-	**[AppCec]** Received command VENDOR_COMMAND_WITH_ID from PLAYBACK_1 to TV with payload: 
-		00 00 f0 24 00 80 
-	**[AppCec]** Error
-	**[AppCec]** Error
-	**[AppCec]** Received command SET_STREAM_PATH from TV to UNREGISTERED_BROADCAST with payload: 
-		10 00 
-	**[AppCec]** Received command IMAGE_VIEW_ON from PLAYBACK_1 to TV
-	**[AppCec]** Received command FEATURE_ABORT from TV to PLAYBACK_1
-	**[AppCec]** Received command ACTIVE_SOURCE from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		10 00 
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		00 
-	**[AppCec]** Received command SET_OSD_NAME from TV to PLAYBACK_1
-	**[AppCec]** Received command UNKNOWN 47 from PLAYBACK_1 to TV with payload: 
-		44 65 63 6f 64 65 75 72 20 55 48 44 
-	**[AppCec]** Error
-	**[AppCec]** Received command IMAGE_VIEW_ON from PLAYBACK_1 to TV
-	**[AppCec]** Error
-	**[AppCec]** Received command ACTIVE_SOURCE from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 
-		10 00 
-	**[AppCec]** Received command POLLING from TV to PLAYBACK_1 with payload: 
-		01 
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		00 
-	**[AppCec]** Error
-	**[AppCec]** Received command POLLING from PLAYBACK_1 to TV with payload: 
-		1a 
-	**[AppCec]** Error
-	**[AppCec]** Received command SET_OSD_NAME from TV to PLAYBACK_1
-	**[AppCec]** Received command UNKNOWN 47 from PLAYBACK_1 to TV with payload: 
-		44 65 63 6f 64 65 75 72 20 55 48 44 
-	// 14 * **[AppCec]** Error
-```
-
-## Power-off sequence
-
-```
-	**[AppCec]** Received command FEATURE_ABORT from PLAYBACK_1 to TV
-	**[AppCec]** Received command STANDBY from PLAYBACK_1 to TV
-	**[AppCec]** Received command STANDBY from TV to UNREGISTERED_BROADCAST
-	**[AppCec]** Received command INACTIVE_SOURCE from PLAYBACK_1 to TV with payload: 
-		10 00 
+0 INFO ../Core/Src/main.c:119: -- Startup --
+3 DEBUG ../App/AppCec.c:140: Received command POLLING from PLAYBACK_1 to AUDIO_SYSTEM
+4 DEBUG ../App/AppCec.c:140: Received command GIVE_DEVICE_POWER_STATUS from PLAYBACK_1 to AUDIO_SYSTEM
+4 DEBUG ../App/AppCec.c:140: Sent command REPORT_POWER_STATUS from AUDIO_SYSTEM to PLAYBACK_1 with payload: 	01 
+5 DEBUG ../App/AppCec.c:140: Received command GIVE_DEVICE_POWER_STATUS from PLAYBACK_1 to AUDIO_SYSTEM
+5 DEBUG ../App/AppCec.c:140: Sent command REPORT_POWER_STATUS from AUDIO_SYSTEM to PLAYBACK_1 with payload: 	01 
+6 DEBUG ../App/AppCec.c:140: Received command SYSTEM_AUDIO_MODE_REQUEST from PLAYBACK_1 to AUDIO_SYSTEM with payload: 	10 00 
+6 DEBUG ../App/AppCec.c:140: Sent command SET_SYSTEM_AUDIO_MODE from AUDIO_SYSTEM to UNREGISTERED_BROADCAST with payload: 	01 
+7 DEBUG ../App/AppCec.c:140: Received command SYSTEM_AUDIO_MODE_REQUEST from PLAYBACK_1 to AUDIO_SYSTEM with payload: 	10 00 
+7 DEBUG ../App/AppCec.c:140: Sent command SET_SYSTEM_AUDIO_MODE from AUDIO_SYSTEM to UNREGISTERED_BROADCAST with payload: 	01 
+9 DEBUG ../App/AppCec.c:140: Received command REPORT_PHYSICAL_ADDRESS from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 	10 00 04 
+10 DEBUG ../App/AppCec.c:140: Received command REPORT_PHYSICAL_ADDRESS from PLAYBACK_1 to UNREGISTERED_BROADCAST with payload: 	10 00 04 
+12 DEBUG ../App/AppCec.c:140: Received command REQUEST_SHORT_AUDIO_DESCRIPTOR from TV to AUDIO_SYSTEM with payload: 	0a 
+12 DEBUG ../App/AppCec.c:140: Sent command FEATURE_ABORT from AUDIO_SYSTEM to TV with payload: 	00 
+14 DEBUG ../App/AppCec.c:140: Received command REQUEST_SHORT_AUDIO_DESCRIPTOR from TV to AUDIO_SYSTEM with payload: 	0a 
+14 DEBUG ../App/AppCec.c:140: Sent command FEATURE_ABORT from AUDIO_SYSTEM to TV with payload: 	00 
+15 DEBUG ../App/AppCec.c:140: Received command REQUEST_SHORT_AUDIO_DESCRIPTOR from TV to AUDIO_SYSTEM with payload: 	0a 
+15 DEBUG ../App/AppCec.c:140: Sent command FEATURE_ABORT from AUDIO_SYSTEM to TV with payload: 	00 
+17 DEBUG ../App/AppCec.c:140: Received command GIVE_DEVICE_POWER_STATUS from TV to AUDIO_SYSTEM
+17 DEBUG ../App/AppCec.c:140: Sent command REPORT_POWER_STATUS from AUDIO_SYSTEM to TV with payload: 	00 
+22 DEBUG ../App/AppCec.c:140: Received command GIVE_PHYSICAL_ADDRESS from TV to AUDIO_SYSTEM
+22 DEBUG ../App/AppCec.c:140: Sent command REPORT_PHYSICAL_ADDRESS from AUDIO_SYSTEM to TV with payload: 	05 
+23 DEBUG ../App/AppCec.c:140: Received command FEATURE_ABORT from TV to AUDIO_SYSTEM with payload: 	16 00 
 ```

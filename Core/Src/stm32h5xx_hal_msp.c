@@ -115,7 +115,7 @@ void HAL_CEC_MspInit(CEC_HandleTypeDef* hcec)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* CEC interrupt Init */
-    HAL_NVIC_SetPriority(CEC_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(CEC_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(CEC_IRQn);
   /* USER CODE BEGIN CEC_MspInit 1 */
 
