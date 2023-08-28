@@ -2,6 +2,7 @@
 #include "AppCec.h"
 #include "DrvCec.h"
 
+#include "cmsis_os2.h"
 #include "log.h"
 
 #include <string.h>
@@ -9,13 +10,12 @@
 //      LOCAL TYPEDEFS DEFINES AND ENUMS
 #define MAX_CALLBACKS_CNT       10U
 #define TX_BUFFER_SIZE          10U
-#define LOG_RXTX                0U
+#define LOG_RXTX                1U
 #define SNPRINTF_BUF_SIZE       128U
 
 typedef struct
 {
     CEC_LOGICAL_ADDRESS target;
-    CEC_LOGICAL_ADDRESS source;
     APP_CEC_CLBK        callback;
 }
 CEC_CLBK_STRUCT;
@@ -55,17 +55,14 @@ CEC_CLBK_STRUCT;
     };
 #endif
 
-static uint8_t          callbacks_count                   = 0;
-static CEC_CLBK_STRUCT  callbacks_list[MAX_CALLBACKS_CNT] = {0};
+static uint8_t              callbacks_count                     = 0;
+static CEC_CLBK_STRUCT      callbacks_list[MAX_CALLBACKS_CNT]   = {0};
 
-static CEC_COMMAND      tx_buffer[TX_BUFFER_SIZE]         = {0};
-static uint8_t          tx_buffer_write_index             = 0;
-static uint8_t          tx_buffer_read_index              = 0;
-static uint8_t          tx_buffer_usage                   = 0;
+static osThreadId_t         thread_cec_handler                  = NULL;
+static osMessageQueueId_t   queue_cec_tx                        = NULL;
+static osMessageQueueId_t   queue_cec_rx                        = NULL;
 
 //      STATIC FUNCTIONS PROTOTYPES
-
-//      STATIC FUNCTIONS DECLARATION
 static void CecErrorHandler(void);
 static void CecRxHandler(CEC_COMMAND* cmd);
 
@@ -73,21 +70,13 @@ static void CecRxHandler(CEC_COMMAND* cmd);
 static void LogRxTx(CEC_COMMAND* cmd, bool received);
 #endif
 
+static void AppCecRunner(void* argument);
+
 //      STATIC FUNCTIONS DEFINITION
 static void CecRxHandler(CEC_COMMAND* cmd)
 {
-#if LOG_RXTX
-    LogRxTx(cmd, true);
-#endif
-
-    for (size_t i = 0; i < callbacks_count; i++)
-    {
-        if (   callbacks_list[i].target == cmd->target
-            && callbacks_list[i].source == cmd->source)
-        {
-            callbacks_list[i].callback(cmd);
-        }
-    }
+    // Just enqueue the frame
+    osMessageQueuePut(queue_cec_rx, cmd, 0, 0);
 }
 
 static void CecErrorHandler(void)
@@ -141,6 +130,57 @@ static void LogRxTx(CEC_COMMAND* cmd, bool received)
 }
 #endif // LOG_RXTX
 
+void AppCecRunner(void* argument)
+{
+    CEC_COMMAND cmd = {0};
+
+    for (;;)
+    {
+        // Parse incoming frames
+        DrvCec_Handler();
+
+        // Process outgoing frames
+        if (osMessageQueueGetCount(queue_cec_tx) > 0)
+        {
+            if (DrvCec_IsReady())
+            {
+                if (osMessageQueueGet(queue_cec_tx, &cmd, 0, 0) == osOK)
+                {
+                    if (DrvCec_Send(&cmd))
+                    {
+                        #if LOG_RXTX
+                        LogRxTx(&cmd, false);
+                        #endif
+                    }
+                    else
+                    {
+                        log_error("Failed to send frame");
+                    }
+                }
+            }
+        }
+
+        // Process incoming frames
+        if (osMessageQueueGet(queue_cec_rx, &cmd, 0, 0) == osOK)
+        {
+            #if LOG_RXTX
+            LogRxTx(&cmd, true);
+            #endif
+
+            // Call handlers
+            for (size_t i = 0; i < callbacks_count; i++)
+            {
+                if (callbacks_list[i].target == cmd.target)
+                {
+                    callbacks_list[i].callback(&cmd);
+                }
+            }
+        }
+
+        osDelay(1);
+    }
+}
+
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppCec_Init(void)
 {
@@ -154,55 +194,43 @@ bool AppCec_Init(void)
         return false;
     }
 
-    tx_buffer_read_index  = 0;
-    tx_buffer_write_index = 0;
-    tx_buffer_usage       = 0;
-
-    return true;
-}
-
-bool AppCec_Handler(void)
-{
-    if (!DrvCec_Handler())
+    osMessageQueueAttr_t queue_cec_tx_attr = {
+        .name = "Queue - CEC TX"
+    };
+    queue_cec_tx = osMessageQueueNew(10, sizeof(CEC_COMMAND), &queue_cec_tx_attr);
+    if (queue_cec_tx == NULL)
     {
         return false;
     }
 
-    if (tx_buffer_usage > 0)
+    osMessageQueueAttr_t queue_cec_rx_attr = {
+        .name = "Queue - CEC RX"
+    };
+    queue_cec_rx = osMessageQueueNew(20, sizeof(CEC_COMMAND), &queue_cec_rx_attr);
+    if (queue_cec_rx == NULL)
     {
-        if (DrvCec_IsReady())
-        {
-            CEC_COMMAND* cmd = &tx_buffer[tx_buffer_read_index++];
-            if (DrvCec_Send(cmd))
-            {
-                if (tx_buffer_read_index >= TX_BUFFER_SIZE)
-                {
-                    tx_buffer_read_index = 0;
-                }
+        return false;
+    }
 
-                tx_buffer_usage--;
-
-#if LOG_RXTX
-                LogRxTx(cmd, false);
-#endif
-            }
-            else
-            {
-                printf("Failed to send frame");
-                return false;
-            }
-        }
+    osThreadAttr_t thread_cec_handler_attr = {
+        .name = "Thread - CEC HANDLER",
+        .stack_size = 4096,
+        .priority = osPriorityHigh
+    };
+    thread_cec_handler = osThreadNew(AppCecRunner, NULL, &thread_cec_handler_attr);
+    if (thread_cec_handler == NULL)
+    {
+        return false;
     }
 
     return true;
 }
 
-bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS source, CEC_LOGICAL_ADDRESS target, APP_CEC_CLBK clbk)
+bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS target, APP_CEC_CLBK clbk)
 {
     if (callbacks_count < MAX_CALLBACKS_CNT)
     {
-        // Two callbacks might be assigned to the same source/target pair
-        callbacks_list[callbacks_count].source   = source;
+        // Two callbacks might be assigned to the same target
         callbacks_list[callbacks_count].target   = target;
         callbacks_list[callbacks_count].callback = clbk;
         callbacks_count++;
@@ -215,18 +243,6 @@ bool AppCec_RegisterCallback(CEC_LOGICAL_ADDRESS source, CEC_LOGICAL_ADDRESS tar
 
 bool AppCec_Send(CEC_COMMAND* cmd)
 {
-    if (tx_buffer_usage == TX_BUFFER_SIZE)
-    {
-        return false;
-    }
-
-    memcpy(&tx_buffer[tx_buffer_write_index++], cmd, sizeof(CEC_COMMAND));
-    tx_buffer_usage++;
-
-    if (tx_buffer_write_index >= TX_BUFFER_SIZE)
-    {
-        tx_buffer_write_index = 0;
-    }
-
-    return true;
+    // Just enqueue the frame for async transmission
+    return (osMessageQueuePut(queue_cec_tx, cmd, 0, 0) == osOK);
 }

@@ -69,6 +69,8 @@ void HAL_MspInit(void)
   /* USER CODE END MspInit 0 */
 
   /* System interrupt init*/
+  /* PendSV_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(PendSV_IRQn, 15, 0);
 
   /* USER CODE BEGIN MspInit 1 */
 
@@ -115,7 +117,7 @@ void HAL_CEC_MspInit(CEC_HandleTypeDef* hcec)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* CEC interrupt Init */
-    HAL_NVIC_SetPriority(CEC_IRQn, 1, 0);
+    HAL_NVIC_SetPriority(CEC_IRQn, 7, 0);
     HAL_NVIC_EnableIRQ(CEC_IRQn);
   /* USER CODE BEGIN CEC_MspInit 1 */
 
@@ -181,7 +183,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     /* Peripheral clock enable */
     __HAL_RCC_TIM2_CLK_ENABLE();
     /* TIM2 interrupt Init */
-    HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(TIM2_IRQn, 7, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
   /* USER CODE BEGIN TIM2_MspInit 1 */
 

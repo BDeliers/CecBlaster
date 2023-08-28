@@ -122,7 +122,7 @@ bool DrvIrSirc_IsReady(void)
     return !transmitting;
 }
 
-bool DrvIrSirc_Transmit(const SIRC_FRAME* frame, uint8_t repeats)
+bool DrvIrSirc_Transmit(const SIRC_FRAME* frame)
 {
     if (transmitting)
     {
@@ -156,10 +156,10 @@ bool DrvIrSirc_Transmit(const SIRC_FRAME* frame, uint8_t repeats)
     }
 
     // Initialize command transmission
-    transmitting = true;
-    nibble_index = 0;
+    transmitting       = true;
+    nibble_index       = 0;
     tx_pause_counter   = 0;
-    tx_repeat    = repeats;
+    tx_repeat          = frame->repeats;
 
     // Start sampling timer
     if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)

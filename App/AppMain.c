@@ -1,6 +1,7 @@
 //      INCLUDES
+#include "AppLog.h"
 #include "AppCec.h"
-#include "DrvIrSirc.h"
+#include "AppIr.h"
 
 #include "log.h"
 
@@ -31,16 +32,16 @@ RM_AAU013_COMMANDS;
 
 // Sony remote power button command
 static const SIRC_FRAME RM_AAU013_COMMAND_SET[RM_AAU013_COMMANDS_COUNT] = {
-    { .command = 0x15, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x12, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x13, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x14, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x1E, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x25, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x41, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x42, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x43, .address = 0x30, .extended = 0x00, .version = C7_A8 },
-    { .command = 0x44, .address = 0x30, .extended = 0x00, .version = C7_A8 },
+    { .command = 0x15, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x12, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x13, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x14, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x1E, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x25, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x41, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x42, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x43, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
+    { .command = 0x44, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
 };
 
 static bool     audio_on            = false;
@@ -179,16 +180,16 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
     }
 
     // Send the IR frame if needed
-    if (send_ir && DrvIrSirc_IsReady())
+    if (send_ir)
     {
-        if (!DrvIrSirc_Transmit(&RM_AAU013_COMMAND_SET[ir_cmd_out], 2))
+        if (!AppIr_Transmit(&RM_AAU013_COMMAND_SET[ir_cmd_out]))
         {
             log_error("Failed to send IR frame\r");
         }
-        /*else
+        else
         {
             log_debug("Sent IR command %02x\r", RM_AAU013_COMMAND_SET[ir_cmd_out].command);
-        }*/
+        }
     }
 
     // Send the CEC frame if needed
@@ -205,8 +206,8 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
     if (GPIO_Pin == GPIO_PIN_13)
     {
-        log_trace("Button pressed, startign audio amp\r");
-        DrvIrSirc_Transmit(&RM_AAU013_COMMAND_SET[RM_AAU013_POWER], 2);
+        log_trace("Button pressed, starting audio amp\r");
+        AppIr_Transmit(&RM_AAU013_COMMAND_SET[RM_AAU013_POWER]);
         audio_on = !audio_on;
     }
 }
@@ -214,23 +215,19 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppMain_Init(void)
 {
-    if (!AppCec_Init() || !DrvIrSirc_Init())
+    if (!AppLog_Init() || !AppCec_Init() || !AppIr_Init())
     {
         return false;
     }
 
     // Register callback for the incoming CEC commands to broadcast and audio system
-    if (!AppCec_RegisterCallback(TV, UNREGISTERED_BROADCAST, Cec_Clbk)
-        || !AppCec_RegisterCallback(TV, AUDIO_SYSTEM, Cec_Clbk)
-        || !AppCec_RegisterCallback(PLAYBACK_1, AUDIO_SYSTEM, Cec_Clbk))
+    if (!AppCec_RegisterCallback(UNREGISTERED_BROADCAST, Cec_Clbk)
+        || !AppCec_RegisterCallback(AUDIO_SYSTEM, Cec_Clbk))
     {
         return false;
     }
+    
+    log_info("Startup\r");
 
     return true;
-}
-
-bool AppMain_Handler(void)
-{
-    return AppCec_Handler();
 }

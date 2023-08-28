@@ -1,5 +1,5 @@
-#ifndef APP_MAIN_H
-#define APP_MAIN_H
+#ifndef APP_LOG_H
+#define APP_LOG_H
 
 //      INCLUDES
 #include <stdint.h>
@@ -10,6 +10,6 @@
 //      PUBLIC TYPEDEFS AND ENUMS
 
 //      PUBLIC FUNCTIONS PROTOTYPES
-bool AppMain_Init(void);
+bool AppLog_Init(void);
 
-#endif /* APP_MAIN_H */
+#endif /* APP_LOG_H */
