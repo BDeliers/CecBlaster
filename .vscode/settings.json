@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "stm32h5xx_hal.h": "c",
-        "stdbool.h": "c",
-        "string.h": "c",
-        "time.h": "c"
-    }
-}

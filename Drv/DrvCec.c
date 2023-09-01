@@ -71,8 +71,10 @@ static bool CecParseFrame(uint8_t* payload, uint8_t size, CEC_COMMAND* cmd)
 //      PUBLIC FUNCTIONS DEFINITION
 bool DrvCec_Init(void)
 {
+    // Use our buffer to received CEC frames
 	HAL_CEC_ChangeRxBuffer(&hcec, cec_rx_buff);
 
+    // Link Rx and error callbacks to this source
     if (HAL_CEC_RegisterRxCpltCallback(&hcec, CecRxClbk) != HAL_OK
         || HAL_CEC_RegisterCallback(&hcec, HAL_CEC_ERROR_CB_ID, CecErrorClbk) != HAL_OK)
     {
@@ -93,12 +95,15 @@ bool DrvCec_Handler(void)
 
         cec_error = false;
     }
+    // CEC frame received
     if (cec_received_frame)
     {
+        // Parse it as a CEC command strcture
         CecParseFrame(cec_rx_buff, cec_frame_size, &cec_parsed_cmd);
 
         if (rx_handler != NULL)
         {
+            // Call RX handler to higher app level
             rx_handler(&cec_parsed_cmd);
         }
         cec_received_frame = false;

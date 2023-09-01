@@ -9,10 +9,12 @@
 
 //      LOCAL TYPEDEFS DEFINES AND ENUMS
 #define MAX_CALLBACKS_CNT       10U
-#define TX_BUFFER_SIZE          10U
 #define LOG_RXTX                1U
 #define SNPRINTF_BUF_SIZE       128U
 
+/// @brief  Callback function structure
+/// @var target   The CEC logical address of the target
+/// @var callback The actual callback function
 typedef struct
 {
     CEC_LOGICAL_ADDRESS target;
@@ -25,6 +27,7 @@ CEC_CLBK_STRUCT;
 //      LOCAL VARIABLES
 
 #if LOG_RXTX
+    /// @brief CEC commands as string
     const char* CEC_COMMANDS_STRING[] = {
         "FEATURE_ABORT",NULL,NULL,NULL,"IMAGE_VIEW_ON","TUNER_STEP_INCREMENT","TUNER_STEP_DECREMENT","TUNER_DEVICE_STATUS",
         "GIVE_TUNER_DEVICE_STATUS","RECORD_ON","RECORD_STATUS","RECORD_OFF",NULL,"TEXT_VIEW_ON",NULL,"RECORD_TV_SCREEN",
@@ -48,6 +51,7 @@ CEC_CLBK_STRUCT;
         NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"CDC_MESSAGE",NULL,NULL,NULL,NULL,NULL,NULL,"ABORT",
     };
 
+    /// @brief CEC logical addresses as string
     const char* CEC_LOGICAL_ADDRESS_STRING[] = {
         "TV","RECORDING_1","RECORDING_2","TUNER_1","PLAYBACK_1","AUDIO_SYSTEM","TUNER_2","TUNER_3",
         "PLAYBACK_2","RECORDING_3","TUNER_4","PLAYBACK_3","BACKUP_1","BACKUP_2","SPECIFIC",
@@ -67,25 +71,32 @@ static void CecErrorHandler(void);
 static void CecRxHandler(CEC_COMMAND* cmd);
 
 #if LOG_RXTX
-static void LogRxTx(CEC_COMMAND* cmd, bool received);
+static void LogRxTx(const CEC_COMMAND* cmd, bool received);
 #endif
 
 static void AppCecRunner(void* argument);
 
 //      STATIC FUNCTIONS DEFINITION
+
+/// @brief      Handler called each time the DrvCec received and processed a frame
+/// @param cmd  The received command 
 static void CecRxHandler(CEC_COMMAND* cmd)
 {
     // Just enqueue the frame
     osMessageQueuePut(queue_cec_rx, cmd, 0, 0);
 }
 
+/// @brief      Handler called each time the DrvCec received an error
 static void CecErrorHandler(void)
 {
     log_error("Error\r");
 }
 
 #if LOG_RXTX
-static void LogRxTx(CEC_COMMAND* cmd, bool received)
+/// @brief          Log a command to standard output
+/// @param cmd      The command to be logged
+/// @param received true if the command was received, false if it was sent
+static void LogRxTx(const CEC_COMMAND* cmd, bool received)
 {
     char buf[SNPRINTF_BUF_SIZE];
     uint8_t idx = 0;
@@ -99,6 +110,7 @@ static void LogRxTx(CEC_COMMAND* cmd, bool received)
         idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "Sent command ");
     }
 
+    // Polling command = no opcode, no payload
     if (cmd->polling)
     {
         idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "POLLING");
@@ -109,6 +121,7 @@ static void LogRxTx(CEC_COMMAND* cmd, bool received)
         {
             idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "%s", CEC_COMMANDS_STRING[cmd->opcode]);
         }
+        // Unknown command
         else
         {
             idx += snprintf(buf+idx, SNPRINTF_BUF_SIZE-idx, "UNKNOWN %02x", cmd->opcode);
@@ -130,6 +143,8 @@ static void LogRxTx(CEC_COMMAND* cmd, bool received)
 }
 #endif // LOG_RXTX
 
+/// @brief          AppCec main thread
+/// @param argument unused
 void AppCecRunner(void* argument)
 {
     CEC_COMMAND cmd = {0};
@@ -139,9 +154,10 @@ void AppCecRunner(void* argument)
         // Parse incoming frames
         DrvCec_Handler();
 
-        // Process outgoing frames
+        // Process outgoing frames if available
         if (osMessageQueueGetCount(queue_cec_tx) > 0)
         {
+            // Only if the CEC driver is ready to send
             if (DrvCec_IsReady())
             {
                 if (osMessageQueueGet(queue_cec_tx, &cmd, 0, 0) == osOK)
@@ -189,11 +205,13 @@ bool AppCec_Init(void)
         return false;
     }
 
+    // Map callbacks
     if (!DrvCec_RegisterRxHandler(CecRxHandler) || !DrvCec_RegisterErrorHandler(CecErrorHandler))
     {
         return false;
     }
 
+    // Outgoing traffic is queued and sent asynchronously
     osMessageQueueAttr_t queue_cec_tx_attr = {
         .name = "Queue - CEC TX"
     };
@@ -203,6 +221,7 @@ bool AppCec_Init(void)
         return false;
     }
 
+    // Incoming traffic is queued and processed asynchronously
     osMessageQueueAttr_t queue_cec_rx_attr = {
         .name = "Queue - CEC RX"
     };
@@ -212,6 +231,7 @@ bool AppCec_Init(void)
         return false;
     }
 
+    // AppCec main thread
     osThreadAttr_t thread_cec_handler_attr = {
         .name = "Thread - CEC HANDLER",
         .stack_size = 4096,

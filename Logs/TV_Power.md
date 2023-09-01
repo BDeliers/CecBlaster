@@ -1,4 +1,4 @@
-## Power-on sequence of Samsung UE43TU7125 TV
+## Power-on to power-off sequence of Samsung UE43TU7125 TV
 
 ```
 0 INFO ../App/AppMain.c:230: Startup

@@ -1,59 +1,40 @@
 //      INCLUDES
 #include "AppLog.h"
 #include "AppCec.h"
-#include "AppIr.h"
+#include "AppRemote.h"
 
 #include "log.h"
 
 #include "stm32h5xx_hal.h"
+#include "cmsis_os2.h"
+#include "FreeRTOS.h"
+#include "timers.h"
 
 #include <string.h>
 
 //      LOCAL TYPEDEFS AND ENUMS
-typedef enum
-{
-    RM_AAU013_POWER,
-    RM_AAU013_VOL_UP,
-    RM_AAU013_VOL_DOWN,
-    RM_AAU013_VOL_MUTE,
-    RM_AAU013_IN_VIDEO2,
-    RM_AAU013_IN_CD,
-    RM_AAU013_MODE_STEREO,
-    RM_AAU013_MODE_AFD,
-    RM_AAU013_MODE_MOVIE,
-    RM_AAU013_MODE_MUSIC,
-    RM_AAU013_COMMANDS_COUNT
-}
-RM_AAU013_COMMANDS;
 
 //      EXTERN VARIABLES
 
 //      LOCAL VARIABLES
+static bool             audio_on                = false;
+static uint8_t          last_user_control       = 0xFF;
 
-// Sony remote power button command
-static const SIRC_FRAME RM_AAU013_COMMAND_SET[RM_AAU013_COMMANDS_COUNT] = {
-    { .command = 0x15, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x12, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x13, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x14, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x1E, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x25, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x41, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x42, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x43, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-    { .command = 0x44, .address = 0x30, .extended = 0x00, .version = C7_A8, .repeats = 2 },
-};
-
-static bool     audio_on            = false;
-static uint8_t  last_user_control   = 0xFF;
+static TimerHandle_t    timer_ir_delayed_key    = NULL;
+static APP_REMOTE_KEYS  ir_delayed_key          = KEY_COUNT;
 
 //      STATIC FUNCTIONS PROTOTYPES
 static void Cec_Clbk(CEC_COMMAND* cmd);
 
+static void IrDelayedKey_Clbk(TimerHandle_t pxTimer);
+
 //      STATIC FUNCTIONS DEFINITION
+
+/// @brief      CEC callback function, called each time a CEC frame arrived
+/// @param cmd  The received command
 static void Cec_Clbk(CEC_COMMAND* cmd)
 {
-    RM_AAU013_COMMANDS ir_cmd_out  = RM_AAU013_COMMANDS_COUNT;
+    APP_REMOTE_KEYS ir_cmd_out  = KEY_COUNT;
     CEC_COMMAND        cec_cmd_out = {.source = AUDIO_SYSTEM, .target = cmd->source};
     bool send_ir  = false;
     bool send_cec = false;
@@ -67,7 +48,7 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
                 if (audio_on)
                 {
                     audio_on   = false;
-                    ir_cmd_out = RM_AAU013_POWER;
+                    ir_cmd_out = KEY_POWER;
                     send_ir    = true;
                 }
                 break;
@@ -129,10 +110,15 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
                 if (!audio_on)
                 {
                     audio_on   = true;
-                    ir_cmd_out = RM_AAU013_POWER;
+                    ir_cmd_out = KEY_POWER;
                     send_ir    = true;
 
-                    // Send switch to right source, to be queued with delay...
+                    // Send switch to right input after delay
+                    ir_delayed_key = KEY_IN_VIDEO2;
+                    if (xTimerStart(timer_ir_delayed_key, 0) != pdTRUE)
+                    {
+                        log_error("Can't start IR timer");
+                    }
                 }
                 break;
             }
@@ -144,17 +130,17 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
                 switch (last_user_control)
                 {
                     case 0x40: // Power
-                        ir_cmd_out = RM_AAU013_POWER;
+                        ir_cmd_out = KEY_POWER;
                         audio_on = true;
                         break;
                     case 0x41: // Volume Up
-                        ir_cmd_out = RM_AAU013_VOL_UP;
+                        ir_cmd_out = KEY_VOL_UP;
                         break;
                     case 0x42: // Volume Down
-                        ir_cmd_out = RM_AAU013_VOL_DOWN;
+                        ir_cmd_out = KEY_VOL_DOWN;
                         break;
                     case 0x43: // Mute
-                        ir_cmd_out = RM_AAU013_VOL_MUTE;
+                        ir_cmd_out = KEY_VOL_MUTE;
                         break;
                     default:
                         send_ir = false;
@@ -182,13 +168,9 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
     // Send the IR frame if needed
     if (send_ir)
     {
-        if (!AppIr_Transmit(&RM_AAU013_COMMAND_SET[ir_cmd_out]))
+        if (!AppRemote_Transmit(ir_cmd_out))
         {
             log_error("Failed to send IR frame\r");
-        }
-        else
-        {
-            log_debug("Sent IR command %02x\r", RM_AAU013_COMMAND_SET[ir_cmd_out].command);
         }
     }
 
@@ -202,20 +184,50 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
     }
 }
 
+/// @brief          Callback function when timer_ir_delayed_key expires
+/// @param argument unused
+static void IrDelayedKey_Clbk(TimerHandle_t pxTimer)
+{
+    if (!AppRemote_Transmit(ir_delayed_key))
+    {
+        log_error("Failed to send IR frame\r");
+    }
+
+    // Stop timer
+    xTimerStop(timer_ir_delayed_key, 0);
+}
+
+/// @brief External interrupt callback 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
+    // If user button is pressed
     if (GPIO_Pin == GPIO_PIN_13)
     {
-        log_trace("Button pressed, starting audio amp\r");
-        AppIr_Transmit(&RM_AAU013_COMMAND_SET[RM_AAU013_POWER]);
-        audio_on = !audio_on;
+        if (!audio_on)
+        {
+            log_trace("Button pressed, starting audio amp\r");
+
+            AppRemote_Transmit(KEY_POWER);
+            audio_on = true;
+
+            ir_delayed_key = KEY_IN_VIDEO2;
+            xTimerStartFromISR(timer_ir_delayed_key, NULL);
+        }
+        else
+        {
+            log_trace("Button pressed, stopping audio amp\r");
+
+            AppRemote_Transmit(KEY_POWER);
+            audio_on = false;
+        }
     }
 }
 
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppMain_Init(void)
 {
-    if (!AppLog_Init() || !AppCec_Init() || !AppIr_Init())
+    // Initialize all modules
+    if (!AppLog_Init() || !AppCec_Init() || !AppRemote_Init())
     {
         return false;
     }
@@ -223,6 +235,13 @@ bool AppMain_Init(void)
     // Register callback for the incoming CEC commands to broadcast and audio system
     if (!AppCec_RegisterCallback(UNREGISTERED_BROADCAST, Cec_Clbk)
         || !AppCec_RegisterCallback(AUDIO_SYSTEM, Cec_Clbk))
+    {
+        return false;
+    }
+
+    // Initialize delayed key timer
+    timer_ir_delayed_key = xTimerCreate("TIMER - delayed IR key", pdMS_TO_TICKS(4000), pdFALSE, NULL, IrDelayedKey_Clbk);
+    if (timer_ir_delayed_key == NULL)
     {
         return false;
     }

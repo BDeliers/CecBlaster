@@ -1,3 +1,10 @@
+/**
+ * @file    AppMain.h
+ * @author  BDeliers
+ * @brief   Main app module, doing the link between CEC and IR remote
+ * 
+ */
+
 #ifndef APP_MAIN_H
 #define APP_MAIN_H
 

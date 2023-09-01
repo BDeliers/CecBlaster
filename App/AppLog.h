@@ -1,3 +1,10 @@
+/**
+ * @file    AppLog.h
+ * @author  BDeliers
+ * @brief   App logging interfaces, sets the log library properly
+ * 
+ */
+
 #ifndef APP_LOG_H
 #define APP_LOG_H
 

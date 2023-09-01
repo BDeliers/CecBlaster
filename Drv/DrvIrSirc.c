@@ -13,12 +13,12 @@ extern TIM_HandleTypeDef            htim1;
 extern TIM_HandleTypeDef            htim2;
 
 //      LOCAL VARIABLES
-static bool         transmitting                    = false;
-static bool         nibbles[SIRC_MAX_NIBBLES]       = {0};
-static uint8_t      nibble_index                    = 0;
-static uint8_t      nibbles_count                   = 0;
-static uint8_t      tx_repeat                       = 0;
-static uint8_t      tx_pause_counter                = 0;
+static volatile bool    transmitting                    = false;
+static bool             nibbles[SIRC_MAX_NIBBLES]       = {0};
+static uint8_t          nibble_index                    = 0;
+static uint8_t          nibbles_count                   = 0;
+static uint8_t          tx_repeat                       = 0;
+static uint8_t          tx_pause_counter                = 0;
 
 //      STATIC FUNCTIONS PROTOTYPES
 
@@ -122,7 +122,7 @@ bool DrvIrSirc_IsReady(void)
     return !transmitting;
 }
 
-bool DrvIrSirc_Transmit(const SIRC_FRAME* frame)
+bool DrvIrSirc_Transmit(const SIRC_FRAME* frame, uint8_t repeats)
 {
     if (transmitting)
     {
@@ -159,7 +159,7 @@ bool DrvIrSirc_Transmit(const SIRC_FRAME* frame)
     transmitting       = true;
     nibble_index       = 0;
     tx_pause_counter   = 0;
-    tx_repeat          = frame->repeats;
+    tx_repeat          = repeats;
 
     // Start sampling timer
     if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)

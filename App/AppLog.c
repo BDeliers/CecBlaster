@@ -9,6 +9,8 @@
 #include <string.h>
 
 //      LOCAL MACRO
+
+// putchar for stdout prototype is compiler dependent
 #ifdef __GNUC__
 	#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 #else
@@ -30,6 +32,8 @@ static void UartTxRunner(void *argument);
 static void LogLockFunction(bool lock, void *lock_ptr);
 
 //      STATIC FUNCTIONS DEFINITION
+
+/// @brief Putchar will be called by printf for each byte
 PUTCHAR_PROTOTYPE
 {
     // Just enqueue the byte
@@ -38,6 +42,8 @@ PUTCHAR_PROTOTYPE
     return ch;
 }
 
+/// @brief          Log main thread. Transmits all the queued bytes to UART
+/// @param argument unused
 static void UartTxRunner(void *argument)
 {
     char byte;
@@ -54,6 +60,9 @@ static void UartTxRunner(void *argument)
     }
 }
 
+/// @brief          Locking function for the log module, keeping logs thread safety
+/// @param lock     true if the lock has to be acquired, false to release
+/// @param lock_ptr Pointer to the lock resource
 static void LogLockFunction(bool lock, void *lock_ptr)
 {
     if (lock)
@@ -69,15 +78,17 @@ static void LogLockFunction(bool lock, void *lock_ptr)
 //      PUBLIC FUNCTIONS DEFINITION
 bool AppLog_Init(void)
 {
+    // UART bytes are queued before being sent
     osMessageQueueAttr_t queue_uart_tx_attr = {
         .name = "Queue - UART TX"
     };
-    queue_uart_tx = osMessageQueueNew(1024, sizeof(char), &queue_uart_tx_attr);
+    queue_uart_tx = osMessageQueueNew(2048, sizeof(char), &queue_uart_tx_attr);
     if (queue_uart_tx == NULL)
     {
         return false;
     }
 
+    // UART tx thread
     osThreadAttr_t thread_uart_tx_attr = {
         .name = "Thread - UART TX",
         .stack_size = 1024,
@@ -89,6 +100,7 @@ bool AppLog_Init(void)
         return false;
     }
 
+    // Mutex to lock the log module, keeping it thread-safe
     osMutexAttr_t  mutex_log_module_attr = {
         .name = "Mutex - Log module"
     };
