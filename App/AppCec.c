@@ -151,9 +151,6 @@ void AppCecRunner(void* argument)
 
     for (;;)
     {
-        // Parse incoming frames
-        DrvCec_Handler();
-
         // Process outgoing frames if available
         if (osMessageQueueGetCount(queue_cec_tx) > 0)
         {

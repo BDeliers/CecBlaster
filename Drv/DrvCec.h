@@ -22,10 +22,6 @@ typedef void (*CEC_ERROR_HANDLER)(void);
 //      PUBLIC FUNCTIONS PROTOTYPES
 bool DrvCec_Init(void);
 
-/// @brief  Driver main handler. This has to be call regularly to ensure processing of incoming frames
-/// @return always true
-bool DrvCec_Handler(void);
-
 bool DrvCec_IsReady(void);
 
 bool DrvCec_RegisterRxHandler(CEC_RX_HANDLER handler);
