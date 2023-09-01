@@ -3,29 +3,36 @@
 
 #include <string.h>
 #include "stm32h5xx_hal.h"
+#include "FreeRTOS.h"
+#include "message_buffer.h"
+#include "timers.h"
 
 //      EXTERN VARIABLES
 extern CEC_HandleTypeDef            hcec;
 
 //      LOCAL VARIABLES
-static bool                         cec_received_frame  = false;
-static bool                         cec_error           = false;
-static uint8_t                      cec_frame_size      = 0;
+static volatile bool                cec_dropped_frame   = false;
+static volatile bool                cec_error           = false;
 static uint8_t                      cec_rx_buff[16]     = {0};
 static CEC_COMMAND                  cec_parsed_cmd      = {0};
 static CEC_RX_HANDLER               rx_handler          = NULL;
 static CEC_ERROR_HANDLER            error_handler       = NULL;
+static MessageBufferHandle_t        message_buffer      = NULL;
+static TimerHandle_t                timer_handler       = NULL;
 
 //      STATIC FUNCTIONS PROTOTYPES
 static void CecErrorClbk(CEC_HandleTypeDef *hcec);
 static void CecRxClbk(CEC_HandleTypeDef *hcec, uint32_t frame_size);
 static bool CecParseFrame(uint8_t* payload, uint8_t size, CEC_COMMAND* cmd);
+static void Handler(TimerHandle_t pxTimer);
 
 //      STATIC FUNCTIONS DEFINITION
 static void CecRxClbk(CEC_HandleTypeDef *hcec, uint32_t frame_size)
-{
-	cec_received_frame = true;
-	cec_frame_size	   = frame_size;
+{	
+    if (xMessageBufferSendFromISR(message_buffer, cec_rx_buff, frame_size, NULL) == 0)
+    {
+        cec_dropped_frame = true;
+    }
 }
 
 static void CecErrorClbk(CEC_HandleTypeDef *hcec)
@@ -60,45 +67,82 @@ static bool CecParseFrame(uint8_t* payload, uint8_t size, CEC_COMMAND* cmd)
             memcpy(cmd->payload, payload+2, size-2);
         }
     }
-
-    return true;
-}
-
-//      PUBLIC FUNCTIONS DEFINITION
-bool DrvCec_Init(void)
-{
-	HAL_CEC_ChangeRxBuffer(&hcec, cec_rx_buff);
-
-    if (HAL_CEC_RegisterRxCpltCallback(&hcec, CecRxClbk) != HAL_OK
-        || HAL_CEC_RegisterCallback(&hcec, HAL_CEC_ERROR_CB_ID, CecErrorClbk) != HAL_OK)
+    else
     {
-        return false;
+        cmd->polling = true;
     }
 
     return true;
 }
 
-bool DrvCec_Handler(void)
+static void Handler(TimerHandle_t pxTimer)
 {
-    if (cec_error)
+    static uint8_t tmp_buffer[16] = {0};
+    static uint8_t read_bytes     = 0;
+
+    if (cec_error || cec_dropped_frame)
     {
         if (error_handler != NULL)
         {
             error_handler();
         }
 
-        cec_error = false;
+        cec_error         = false;
+        cec_dropped_frame = false;
     }
-    if (cec_received_frame)
+    // CEC frame received
+    if (xMessageBufferIsEmpty(message_buffer) == pdFALSE)
     {
-        CecParseFrame(cec_rx_buff, cec_frame_size, &cec_parsed_cmd);
+        read_bytes = 0;
 
-        if (rx_handler != NULL)
+        do
         {
-            rx_handler(&cec_parsed_cmd);
+            // Get un-parsed frame from buffer
+            read_bytes = xMessageBufferReceive(message_buffer, tmp_buffer, 16, 0);
+
+            if (read_bytes > 0)
+            {
+                // Parse it as a CEC command strcture
+                CecParseFrame(tmp_buffer, read_bytes, &cec_parsed_cmd);
+
+                if (rx_handler != NULL)
+                {
+                    // Call RX handler to higher app level
+                    rx_handler(&cec_parsed_cmd);
+                }
+            }
         }
-        cec_received_frame = false;
+        while (read_bytes > 0);
     }
+}
+
+//      PUBLIC FUNCTIONS DEFINITION
+bool DrvCec_Init(void)
+{
+    // Use our buffer to received CEC frames
+	HAL_CEC_ChangeRxBuffer(&hcec, cec_rx_buff);
+
+    // Link Rx and error callbacks to this source
+    if (HAL_CEC_RegisterRxCpltCallback(&hcec, CecRxClbk) != HAL_OK
+        || HAL_CEC_RegisterCallback(&hcec, HAL_CEC_ERROR_CB_ID, CecErrorClbk) != HAL_OK)
+    {
+        return false;
+    }
+
+    // Create a message buffer that can contain 10 frames
+    message_buffer = xMessageBufferCreate(10 * 16);
+    if (message_buffer == NULL)
+    {
+        return false;
+    }
+
+    // Initialize handler task to be called each 20 ticks
+    timer_handler = xTimerCreate("TIMER - CEC handler", 20, pdTRUE, NULL, Handler);
+    if (timer_handler == NULL)
+    {
+        return false;
+    }
+    xTimerStart(timer_handler, 0);
 
     return true;
 }
@@ -123,6 +167,11 @@ bool DrvCec_RegisterErrorHandler(CEC_ERROR_HANDLER handler)
 
     error_handler = handler;
     return true;
+}
+
+bool DrvCec_IsReady(void)
+{
+    return (HAL_CEC_GetState(&hcec) == HAL_CEC_STATE_READY);
 }
 
 bool DrvCec_Send(CEC_COMMAND* cmd)
