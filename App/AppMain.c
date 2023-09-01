@@ -129,10 +129,6 @@ static void Cec_Clbk(CEC_COMMAND* cmd)
 
                 switch (last_user_control)
                 {
-                    case 0x40: // Power
-                        ir_cmd_out = KEY_POWER;
-                        audio_on = true;
-                        break;
                     case 0x41: // Volume Up
                         ir_cmd_out = KEY_VOL_UP;
                         break;

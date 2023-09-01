@@ -67,11 +67,15 @@ static void LogLockFunction(bool lock, void *lock_ptr)
 {
     if (lock)
     {
+        // Acquire mutex and avoid context switch
         osMutexAcquire(mutex_log_module, 0);
+        osKernelLock();
     }
     else
     {
+        // Release mutex and re-enable context switch
         osMutexRelease(mutex_log_module);
+        osKernelUnlock();
     }
 }
 
